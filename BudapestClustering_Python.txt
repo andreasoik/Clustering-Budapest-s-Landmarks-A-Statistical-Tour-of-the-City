@@ -1,0 +1,71 @@
+import numpy as np; import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.mixture import GaussianMixture as GMM
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
+from sklearn.mixture import BayesianGaussianMixture as BGMM
+from sklearn.cluster import MeanShift
+
+df=pd.read_excel(r'C:/Users/ANDREAS/Desktop/ALEX THE ANALYST/Budapest.xlsx')
+df=df.drop('Unnamed: 3',axis=1)
+df[['Latitude','Longitude']]=df.Coordinates.str.split(', ',expand=True)
+scale=StandardScaler().fit_transform(df.get(['Latitude','Longitude']))
+
+silhouette=[]
+n_cluster=[]
+for n in np.arange(2,18):
+    model=GMM(n_components=n,random_state=0,covariance_type="full").fit(scale)
+    sil=silhouette_score(scale,model.predict(scale))
+    silhouette.append(sil)
+    number=len(np.unique(model.predict(scale)))
+    n_cluster.append(number)
+plt.plot(np.arange(2,18),silhouette)
+plt.xlabel('n_components')
+plt.ylabel('silhouette')
+
+plt.plot(np.arange(2,18),n_cluster)
+plt.xlabel('n_components')
+plt.ylabel('number of clusters')
+
+model=GMM(n_components=6,random_state=0,covariance_type="full").fit(scale)
+df['GMM']=model.predict(scale).tolist()
+
+silhouette=[]
+n_cluster=[]
+for n in np.arange(2,18):
+    model=BGMM(n_components=n, random_state=0,covariance_type='full').fit(scale)
+    sil=silhouette_score(scale,model.predict(scale))
+    silhouette.append(sil)
+    number=len(np.unique(model.predict(scale)))
+    n_cluster.append(number)
+plt.plot(np.arange(2,18),silhouette)
+plt.xlabel('n_components')
+plt.ylabel('silhouette')
+
+plt.plot(np.arange(2,18),n_cluster)
+plt.xlabel('n_components')
+plt.ylabel('number of clusters')
+
+model= model=BGMM(n_components=4, random_state=0,covariance_type='full').fit(scale)
+df['BGMM']=model.predict(scale).tolist()
+
+silhouette=[]
+n_cluster=[]
+for n in np.arange(0.1,1.4,0.02):
+    model=MeanShift(bandwidth=n).fit(scale)
+    sil=silhouette_score(scale,model.predict(scale))
+    silhouette.append(sil)
+    number=len(np.unique(model.predict(scale)))
+    n_cluster.append(number)
+plt.plot(np.arange(0.1,1.4,0.02),silhouette)
+plt.xlabel('bandwidth')
+plt.ylabel('silhouette')
+
+plt.plot(np.arange(0.1,1.4,0.02),n_cluster)
+plt.xlabel('bandwidth')
+plt.ylabel('number of clusters')
+
+model=MeanShift(bandwidth=0.9).fit(scale)
+df['MNSFT']=model.predict(scale).tolist()

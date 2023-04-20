@@ -1,0 +1,91 @@
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(openxlsx)
+library(cluster)
+
+data=data%>%select(-c("...4"))
+data=data%>%separate(Coordinates,c("Latitude","Longitude"),", ")
+options(digits = 14)
+data$Latitude=as.numeric(data$Latitude)
+data$Longitude=as.numeric(data$Longitude)
+
+data=data%>%mutate(Lat2=(Latitude-47)*10)
+data=data%>%mutate(Long2=(Longitude-19)*100)
+data=data%>%mutate(across(c("Lat2","Long2"),scale))
+data=data%>%mutate(across(c("Lat2","Long2"),as.vector))
+
+silhouette_score=function(dataX,nc,seed=1234){
+  score=c()
+  for(j in 2:nc) {
+    km=kmeans(dataX,centers=j)
+    ss=silhouette(km$cluster,dist(dataX,method="manhattan"))
+    score[j-1]=mean(ss[,3])
+  }
+  d=cbind.data.frame(k=2:nc,score);return(d)
+}
+silhouette_score(data[,c("Lat2","Long2")],8)
+for(i in 3:8){
+kc=kmeans(data[,c("Lat2","Long2")],i)
+data[,paste0("kc",i)]=kc$cluster
+
+}
+data=data%>%mutate(across(paste0("kc",3:8),as.factor))
+
+silhouette_score_pam=function(dataX,nc,seed=1234){
+  score=c()
+  for(j in 2:nc) {
+    pam=pam(dataX,k=j,metric="manhattan")
+    ss=silhouette(pam$cluster,dist(dataX))
+    score[j-1]=mean(ss[,3])
+  }
+  d=cbind.data.frame(k=2:nc,score);return(d)
+}
+silhouette_score_pam(data[,c("Lat2","Long2")],8)
+
+for(i in 3:8){
+  pam=pam(data[,c("Lat2","Long2")],k=i,metric="manhattan")
+  data[,paste0("pam",i)]=pam$cluster
+  
+}
+data=data%>%mutate(across(paste0("pam",3:8),as.factor))
+
+library(dbscan)
+library(NbClust)
+
+silhouette_score_dbscan=function(dataX,np,ep,seed=1234){
+  score=c();i=0;k=c();e=c();mnp=c()
+  for(w in 1:np){   
+    for(j in seq(0.1,ep,0.2)){i=i+1
+   
+     dbscan=dbscan(dataX,eps=j,MinPts=w)
+    
+    ss=silhouette(dbscan$cluster,dist(dataX))
+    
+    if(is.na(ss[1])){
+    score[i]=NA;k[i]=NA;e[i]=NA;mnp[i]=NA
+    } else {
+    score[i]=mean(ss[,3])
+    k[i]=length(unique(dbscan$cluster))
+    e[i]=j
+    mnp[i]=w
+            } 
+    }
+  }
+  d=cbind.data.frame(k,score,e,mnp);return(na.omit(d))
+}
+
+sil_dbscan=silhouette_score_dbscan(data[,c("Lat2","Long2")],10,2)
+sil_dbscan$k=as.factor(sil_dbscan$k)
+top_bygroup=sil_dbscan%>%group_by(k)%>%slice(which.max(score))%>%arrange(desc(score))
+
+n=3
+for(i in 1:n){db=dbscan(data[,c("Lat2","Long2")],eps=top_bygroup$e[i],MinPts=top_bygroup$mnp[i])
+              data[,paste0("dbscan",length(unique(db$cluster)))]=db$cluster
+             }
+
+
+sil_dbscan%>%arrange(desc(score))%>%group_by(k)%>%slice(1:3)
+
+
+
